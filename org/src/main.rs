@@ -107,9 +107,12 @@ fn main() {
 
     let scalar_quant_cs = cosine_similarity_new(&vector_list1, &vector_list2);
     println!("scalar_quant_cs : {}", scalar_quant_cs);
+
+    let quaternary_scalar_quant_cs = cosine_similarity_quaternary(&vector_list1, &vector_list2);
+    println!("quaternary_scalar_quant_cs : {}", quaternary_scalar_quant_cs);
 }
 
-fn quaternary_multiply_u8(a0: u8, a1: u8, b0: u8, b1: u8) -> u8 {
+fn quaternary_multiply_u32(a0: u32, a1: u32, b0: u32, b1: u32) -> u64 {
     // Calculate intermediate products
     let p0 = a0 & b0; // a0 * b0
     let p1 = (a0 & b1) ^ (a1 & b0); // (a0 * b1) ^ (a1 * b0)
@@ -117,10 +120,10 @@ fn quaternary_multiply_u8(a0: u8, a1: u8, b0: u8, b1: u8) -> u8 {
 
     // Combine intermediate products to form the final result
     let result = (p2 << 2) | (p1 << 1) | p0;
-    result
-   }
+    result.into()
+}
 
-  fn senary_multiply_u8(a0: u8, a1: u8, a2: u8, b0: u8, b1: u8, b2: u8) -> u32 {
+fn senary_multiply_u8(a0: u8, a1: u8, a2: u8, b0: u8, b1: u8, b2: u8) -> u16 {
     // Calculate intermediate products
     let p0 = a0 & b0;
     let p1 = (a0 & b1) ^ (a1 & b0);
@@ -130,7 +133,7 @@ fn quaternary_multiply_u8(a0: u8, a1: u8, b0: u8, b1: u8) -> u8 {
 
     // Combine intermediate products to form the final result
     let result = (p4 << 4) | (p3 << 3) | (p2 << 2) | (p1 << 1) | p0;
-    result
+    result.into()
 }
 
 pub fn cosine_coalesce(x: &VectorQt, y: &VectorQt, length: usize) -> f32 {
@@ -215,6 +218,32 @@ fn cosine_similarity_new(x: &VectorQt, y: &VectorQt) -> f32 {
 
     dot_product / (magnitude_vec1 * magnitude_vec2)
 }
+
+fn cosine_similarity_quaternary(x: &VectorQt, y: &VectorQt) -> f64 {
+    let vec1 = &x.quant_vec;
+    let vec2 = &y.quant_vec;
+    let vec1_len = vec1.len();
+
+    let mut dot_product = 0.0;
+    let mut mag1 = 0.0;
+    let mut mag2 = 0.0;
+    for index in 0..vec1_len {
+        let inner_product_len = vec1[0].len();
+        for i in (0..inner_product_len).step_by(2) {
+            dot_product += quaternary_multiply_u32(vec1[index][i],vec1[index][i+1],vec2[index][i],vec2[index][i+1]) as f64;
+            mag1 += quaternary_multiply_u32(vec1[index][i],vec1[index][i+1],vec1[index][i],vec1[index][i+1]) as f64;
+            mag2 += quaternary_multiply_u32(vec2[index][i],vec2[index][i+1],vec2[index][i],vec2[index][i+1]) as f64;
+            println!("debug dot_product: {:?} {} {}",dot_product,mag1,mag2);
+        }
+    }
+
+    let magnitude_vec1 = mag1.sqrt();
+    let magnitude_vec2 = mag2.sqrt();
+
+    dot_product / (magnitude_vec1 * magnitude_vec2)
+}
+
+
 
 fn to_float_flag(x: f32, bits_per_value: usize, step: f32) -> Vec<bool> {
     let mut num = ((x + 1.0) / step).floor() as usize;
