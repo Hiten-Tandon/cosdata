@@ -65,7 +65,7 @@ fn main() {
     println!("done");
 
     let size = 64;
-    let min = -1.0;
+    let min = 0.0;
     let max = 1.0;
     let vec1 = (0..size)
         .map(|_| {
@@ -120,6 +120,7 @@ fn quaternary_multiply_u32(a0: u32, a1: u32, b0: u32, b1: u32) -> u64 {
 
     // Combine intermediate products to form the final result
     let result = (p2 << 2) | (p1 << 1) | p0;
+    println!("debugging quaternay_multiply_u32:  p0 {} | p1 {} | p2 {} | (p1 << 1) {} | (p2 << 2) {} | first {} | result {}", p0,p1,p2,(p1 << 1),(p2 << 2), (p2 << 2) | (p1 << 1), result);
     result.into()
 }
 
@@ -230,10 +231,16 @@ fn cosine_similarity_quaternary(x: &VectorQt, y: &VectorQt) -> f64 {
     for index in 0..vec1_len {
         let inner_product_len = vec1[0].len();
         for i in (0..inner_product_len).step_by(2) {
-            dot_product += quaternary_multiply_u32(vec1[index][i],vec1[index][i+1],vec2[index][i],vec2[index][i+1]) as f64;
-            mag1 += quaternary_multiply_u32(vec1[index][i],vec1[index][i+1],vec1[index][i],vec1[index][i+1]) as f64;
-            mag2 += quaternary_multiply_u32(vec2[index][i],vec2[index][i+1],vec2[index][i],vec2[index][i+1]) as f64;
-            println!("debug dot_product: {:?} {} {}",dot_product,mag1,mag2);
+            let quat = quaternary_multiply_u32(vec1[index][i],vec1[index][i+1],vec2[index][i],vec2[index][i+1]) as f64;
+            println!("debug values: a0 {} | a1 {} | b0 {} | b1 {} | quat {}",vec1[index][i],vec1[index][i+1],vec2[index][i],vec2[index][i+1],quat);
+            dot_product += quat;
+            let mag1_current = quaternary_multiply_u32(vec1[index][i],vec1[index][i+1],vec1[index][i],vec1[index][i+1]) as f64;
+            mag1 += mag1_current;
+            let mag2_current = quaternary_multiply_u32(vec2[index][i],vec2[index][i+1],vec2[index][i],vec2[index][i+1]) as f64;
+            println!("debug magnitude 1: a0 {} | a1 {} | b0 {} | b1 {} | mag {}",vec1[index][i],vec1[index][i+1],vec1[index][i],vec1[index][i+1],mag1_current);
+            println!("debug magnitude 2: a0 {} | a1 {} | b0 {} | b1  {} | mag {}", vec2[index][i],vec2[index][i+1],vec2[index][i],vec2[index][i+1],mag2_current);
+            mag2 += mag2_current;
+            println!("debug dot_product: {:?} | accumulated_mag1 {} | accumulated_mag2 {}",dot_product, mag1,mag2);
         }
     }
 
@@ -246,7 +253,7 @@ fn cosine_similarity_quaternary(x: &VectorQt, y: &VectorQt) -> f64 {
 
 
 fn to_float_flag(x: f32, bits_per_value: usize, step: f32) -> Vec<bool> {
-    let mut num = ((x + 1.0) / step).floor() as usize;
+    let mut num = (x / step).floor() as usize;
     println!("bits_per_value : {} | step {} | x {} | num {}", bits_per_value, step, x, num);
 
     let mut result = vec![];
@@ -262,7 +269,7 @@ fn to_float_flag(x: f32, bits_per_value: usize, step: f32) -> Vec<bool> {
 pub fn quantize_to_u32_bits(fins: &[f32], resolution: u8) -> Vec<Vec<u32>> {
     let bits_per_value = resolution as usize;
     let parts = 2_usize.pow(bits_per_value as u32);
-    let step = 2.0 / parts as f32;
+    let step = 1.0 / parts as f32;
 
     let u32s_per_value = fins.len() / 32;
     let mut quantized: Vec<Vec<u32>> = vec![Vec::with_capacity(u32s_per_value); bits_per_value];
