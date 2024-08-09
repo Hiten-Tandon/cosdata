@@ -42,7 +42,7 @@ impl DistanceFunction for CosineDistance {
                         cosine_similarity_from_dot_product(dot_product, *x_mag, *y_mag)
                     }
                     2 => {
-                        let dot_product = dot_product_quaternary(x_vec, y_vec, *x_res);
+                        let dot_product = dot_product_quaternary(x_vec, y_vec);
                         cosine_similarity_from_dot_product(dot_product, *x_mag, *y_mag)
                     }
                     _ => Err(DistanceError::CalculationError),
@@ -92,9 +92,7 @@ fn cosine_similarity_from_dot_product(
     }
 }
 
-fn dot_product_quaternary(x_vec: &[Vec<u8>], y_vec: &[Vec<u8>], resolution: u8) -> f32 {
-    assert_eq!(resolution, 2);
-
+fn dot_product_quaternary(x_vec: &[Vec<u8>], y_vec: &[Vec<u8>]) -> f32 {
     let dot_product: u32 = x_vec[0]
         .iter()
         .zip(&x_vec[1])
@@ -116,8 +114,42 @@ fn dot_product_quaternary(x_vec: &[Vec<u8>], y_vec: &[Vec<u8>], resolution: u8) 
     dot_product as f32
 }
 #[cfg(target_arch = "x86_64")]
-use std::arch::x86_64::*;
+fn dot_product_senary(x_vec: &[Vec<u8>], y_vec: &[Vec<u8>]) -> f32 {
+    let dot_product: u32 = (x_vec[0].iter().zip(x_vec[1].iter().zip(x_vec[2].iter())))
+        .zip(y_vec[0].iter().zip(y_vec[1].iter().zip(y_vec[2].iter())))
+        .map(|((&a0, (&a1, &a2)), (&b0, (&b1, &b2)))| {
+            let lsbs = (a0 & b0).count_ones();
+            let midlo1 = a1 & b0;
+            let midlo2 = b1 & a0;
+            let himid1 = a2 & b1;
+            let himid2 = b2 & a1;
+            let hilo1 = a2 & b0;
+            let hilo2 = b2 & a0;
+            let midmid = (a1 & b1).count_ones();
+            let carrymidlo = (midlo1 & midlo2).count_ones();
+            let carryhimid = (himid1 & himid2).count_ones();
+            let carryhilo = (hilo1 & hilo2).count_ones();
+            let msbs = (a2 & b2).count_ones();
+            let midlo = (midlo1 ^ midlo2).count_ones();
+            let himid = (himid1 ^ himid2).count_ones();
+            let hilo = (hilo1 ^ hilo2).count_ones();
 
+            let result = (msbs << 4)
+                + (carryhimid << 4)
+                + (himid << 3)
+                + (carryhilo << 3)
+                + (midmid << 2)
+                + (hilo << 2)
+                + (carrymidlo << 2)
+                + (midlo << 1)
+                + lsbs;
+            result
+        })
+        .sum();
+
+    dot_product as f32
+}
+use std::arch::x86_64::*;
 #[target_feature(enable = "avx2")]
 #[cfg(target_arch = "x86_64")]
 unsafe fn dot_product_quaternary_avx2(x_vec: &[Vec<u8>], y_vec: &[Vec<u8>], resolution: u8) -> f32 {
@@ -351,7 +383,7 @@ mod tests {
         }
 
         // Compute dot product using quaternary method
-        let quaternary_dot_product = dot_product_quaternary(&vec_a, &vec_b, 2);
+        let quaternary_dot_product = dot_product_quaternary(&vec_a, &vec_b);
 
         // Compute theoretical dot product
         let float_a: Vec<f32> = input_a.iter().map(|&x| x as f32).collect();
@@ -379,6 +411,84 @@ mod tests {
         println!("Theoretical dot product: {}", theoretical_dot_product);
         println!("Relative error: {}%", relative_error);
     }
+    #[test]
+
+    fn test_dot_product_senary_vs_theoretical() {
+        let mut rng = rand::thread_rng();
+        let length = 32;
+        // Generate random vectors with values in the range [0, 1, 2, ..., 7]
+        let input_a: Vec<u8> = (0..length).map(|_| rng.gen_range(0..=7)).collect();
+        let input_b: Vec<u8> = (0..length).map(|_| rng.gen_range(0..=7)).collect();
+
+        let mut vec_a = vec![Vec::new(); 3];
+        let mut vec_b = vec![Vec::new(); 3];
+
+        let mut current_byte_a = [0u8; 3];
+        let mut current_byte_b = [0u8; 3];
+        let mut bit_index = 0;
+
+        for (&a, &b) in input_a.iter().zip(input_b.iter()) {
+            // Pack bits for input_a
+            current_byte_a[0] |= (a & 1) << bit_index;
+            current_byte_a[1] |= ((a >> 1) & 1) << bit_index;
+            current_byte_a[2] |= ((a >> 2) & 1) << bit_index;
+
+            // Pack bits for input_b
+            current_byte_b[0] |= (b & 1) << bit_index;
+            current_byte_b[1] |= ((b >> 1) & 1) << bit_index;
+            current_byte_b[2] |= ((b >> 2) & 1) << bit_index;
+
+            bit_index += 1;
+
+            if bit_index == 8 {
+                // Push the current byte to each vector and reset
+                for i in 0..3 {
+                    vec_a[i].push(current_byte_a[i]);
+                    vec_b[i].push(current_byte_b[i]);
+                    current_byte_a[i] = 0;
+                    current_byte_b[i] = 0;
+                }
+                bit_index = 0;
+            }
+        }
+
+        // Handle any remaining bits in the last byte
+        if bit_index > 0 {
+            for i in 0..3 {
+                vec_a[i].push(current_byte_a[i]);
+                vec_b[i].push(current_byte_b[i]);
+            }
+        }
+
+        // Compute dot product using senary method
+        let senary_dot_product = dot_product_senary(&vec_a, &vec_b);
+
+        // Compute theoretical dot product
+        let float_a: Vec<f32> = input_a.iter().map(|&x| x as f32).collect();
+        let float_b: Vec<f32> = input_b.iter().map(|&x| x as f32).collect();
+        let theoretical_dot_product = theoretical_dot_product(&float_a, &float_b);
+
+        // Calculate relative error
+        let relative_error = ((senary_dot_product - theoretical_dot_product).abs()
+            / theoretical_dot_product.abs())
+            * 100.0;
+
+        // Assert that the relative error is within an acceptable range (e.g., 1%)
+        assert!(
+            relative_error < 1.0,
+            "Relative error too high: {}%. Quaternary: {}, Theoretical: {}",
+            relative_error,
+            senary_dot_product,
+            theoretical_dot_product
+        );
+
+        // Optionally, print detailed results for debugging
+        println!("Input A: {:?}", input_a);
+        println!("Input B: {:?}", input_b);
+        println!("Senary dot product: {}", senary_dot_product);
+        println!("Theoretical dot product: {}", theoretical_dot_product);
+        println!("Relative error: {}%", relative_error);
+    }
 
     fn theoretical_dot_product(a: &[f32], b: &[f32]) -> f32 {
         a.iter().zip(b.iter()).map(|(&x, &y)| x * y).sum()
@@ -400,7 +510,7 @@ mod tests {
         for size in sizes {
             let (x_vec, y_vec) = generate_random_vectors(size);
 
-            let non_simd_result = dot_product_quaternary(&x_vec, &y_vec, 2);
+            let non_simd_result = dot_product_quaternary(&x_vec, &y_vec);
 
             #[cfg(target_arch = "x86_64")]
             let simd_result = unsafe {
@@ -441,7 +551,7 @@ mod tests {
 
                 // Non-SIMD version
                 let start = Instant::now();
-                let _ = dot_product_quaternary(&x_vec, &y_vec, 2);
+                let _ = dot_product_quaternary(&x_vec, &y_vec);
                 non_simd_time += start.elapsed().as_secs_f64();
 
                 // SIMD version
