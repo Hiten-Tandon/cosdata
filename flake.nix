@@ -10,6 +10,9 @@
   outputs = { nixpkgs, rust-overlay, flake-utils, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
+        rust-config =
+          (builtins.fromTOML (builtins.readFile ./rust-toolchain.toml));
+        rustc_version = rust-config.toolchain.channel;
         overlays = [ (import rust-overlay) ];
         pkgs = import nixpkgs { inherit system overlays; };
       in {
@@ -18,7 +21,8 @@
             buildInputs = [
               openssl
               pkg-config
-              rust-bin.stable."1.81.0".default
+              rust-bin.stable.${rustc_version}.default
+              rust-analyzer
               cargo
               zstd
             ];
