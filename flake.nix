@@ -19,7 +19,7 @@
         devShells.default = with pkgs;
           mkShell {
             buildInputs = [
-              openssl
+              openssl_3_3
               pkg-config
               rust-bin.stable.${rustc_version}.default
               rust-analyzer
