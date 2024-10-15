@@ -18,6 +18,8 @@
       in {
         devShells.default = with pkgs;
           mkShell {
+            SSL_CERT_DIR = ~/.certs;
+
             buildInputs = [
               openssl_3_3
               pkg-config

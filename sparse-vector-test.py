@@ -74,7 +74,7 @@ def generate_random_sparse_vectors(num_records, max_index, min_nonzero, max_nonz
         record = {
             'id': f'vec{i}',
             'sparse_values': {
-                'indices': indices.tolist(),
+                'indices': list(indices),
                 'values': values
             }
         }
