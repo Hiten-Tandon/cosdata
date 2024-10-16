@@ -130,15 +130,14 @@ fn load_rustls_config(ssl_config: &Ssl) -> rustls::ServerConfig {
         .unwrap();
 
     // init server config builder with safe defaults
-    let mut config = ServerConfig::builder().with_no_client_auth();
+    let config = ServerConfig::builder().with_no_client_auth();
 
     // load TLS key/cert files
     let cert_file = &mut BufReader::new(File::open(&ssl_config.cert_file).unwrap_or_else(|_| {
-        eprintln!(
+        panic!(
             "Failed to open certificate file: {}",
-            ssl_config.key_file.display()
+            ssl_config.cert_file.display()
         );
-        std::process::exit(1);
     }));
     let key_file = &mut BufReader::new(File::open(&ssl_config.key_file).unwrap_or_else(|_| {
         eprintln!("Failed to open key file: {}", ssl_config.key_file.display());
