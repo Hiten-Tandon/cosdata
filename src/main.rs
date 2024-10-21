@@ -4,7 +4,7 @@ pub mod macros;
 mod models;
 mod vector_store;
 mod web_server;
-use tracing::{event, span, Level};
+use tracing::{event, instrument, span, Level};
 use web_server::run_actix_server;
 pub(crate) mod api;
 pub mod config_loader;
@@ -16,8 +16,14 @@ pub mod storage;
 use crate::models::common::*;
 
 fn main() -> Result<(), std::io::Error> {
-    let span = span!(Level::TRACE, "Database");
-    let _x = span.enter();
+    tracing_subscriber::fmt()
+        .pretty()
+        .with_max_level(Level::TRACE)
+        .init();
+    let x = span!(Level::TRACE, "Cosdata");
+    let _x = x.enter();
     event!(Level::INFO, "Database started");
-    run_actix_server()
+    let res = run_actix_server();
+    event!(Level::INFO, "Database stopped succesfully");
+    res
 }

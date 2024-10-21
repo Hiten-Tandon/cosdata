@@ -12,7 +12,7 @@ use rustls::{pki_types::PrivateKeyDer, ServerConfig};
 use rustls_pemfile::{certs, pkcs8_private_keys};
 use serde::{Deserialize, Serialize};
 use std::{fs::File, io::BufReader};
-use tracing::{event, span, Level};
+use tracing::{event, span, warn, Level};
 
 use crate::api::vectordb::indexes::indexes_module;
 use std::env;
@@ -39,21 +39,23 @@ async fn index_manual(body: web::Bytes) -> Result<HttpResponse, Error> {
 
 #[actix_web::main]
 pub async fn run_actix_server() -> std::io::Result<()> {
-    _ = span!(Level::TRACE, "Server").enter();
+    let s = span!(Level::INFO, "Server");
+    let _x = s.enter();
     let config = load_config();
     event!(Level::INFO, "Server Config Loaded");
 
     let tls = match &config.server.mode {
         ServerMode::Https => Some(load_rustls_config(&config.server.ssl)),
         ServerMode::Http => {
-            log::warn!("server.mode=http is not recommended in production");
+            warn!("server.mode=http is not recommended in production");
             None
         }
     };
 
     event!(
         Level::INFO,
-        "starting HTTPS server at {}://{}:{}",
+        "starting {} server at {}://{}:{}",
+        &config.server.mode.protocol().to_uppercase(),
         &config.server.mode.protocol(),
         &config.server.host,
         &config.server.port,

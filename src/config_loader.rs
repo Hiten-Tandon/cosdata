@@ -1,13 +1,14 @@
 use serde::{Deserialize, Deserializer};
-use std::{io, vec};
-use std::{fs, path::PathBuf};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, ToSocketAddrs};
+use std::{fs, path::PathBuf};
+use std::{io, vec};
+use tracing::debug;
 
 #[derive(Deserialize, Clone)]
 pub struct Config {
     pub server: Server,
     pub upload_threshold: u32,
-    pub upload_process_batch_size: usize
+    pub upload_process_batch_size: usize,
 }
 
 #[derive(Deserialize, Clone)]
@@ -101,11 +102,11 @@ impl<'a> ToSocketAddrs for HostPort<'a> {
     fn to_socket_addrs(&self) -> io::Result<Self::Iter> {
         match &self.0 {
             Host::Ip(ip) => {
-                let socket = SocketAddr::new(*ip, self.1.0);
+                let socket = SocketAddr::new(*ip, self.1 .0);
                 Ok(vec![socket].into_iter())
             }
             Host::Hostname(hostname) => {
-                let addresses = (hostname.as_str(), self.1.0).to_socket_addrs()?;
+                let addresses = (hostname.as_str(), self.1 .0).to_socket_addrs()?;
                 Ok(addresses.collect::<Vec<_>>().into_iter())
             }
         }
@@ -128,7 +129,8 @@ impl Server {
 
 pub fn load_config() -> Config {
     let config_contents = fs::read_to_string("config.toml").expect("Failed to load config file");
-    let config: Config = toml::from_str(&config_contents).expect("Failed to parse config file contents!");
+    debug!("Config: \n{}", config_contents);
+    let config: Config =
+        toml::from_str(&config_contents).expect("Failed to parse config file contents!");
     config
 }
-
