@@ -31,5 +31,7 @@
 
             shellHook = "";
           };
+
+        formatter = pkgs.nixfmt-classic;
       });
 }

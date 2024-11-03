@@ -178,5 +178,10 @@ fn load_rustls_config(ssl_config: &Ssl) -> rustls::ServerConfig {
         });
 
     trace!("Private key loaded");
-    config.with_single_cert(cert_chain, key).unwrap()
+    config
+        .with_single_cert(cert_chain, key)
+        .unwrap_or_else(|x| {
+            error!("Failed to load certificate, because of error: {}", x);
+            panic!("Failed to load certificate, because of error: {}", x);
+        })
 }
