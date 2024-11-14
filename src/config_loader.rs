@@ -6,6 +6,8 @@ use tracing::debug;
 
 #[derive(Deserialize, Clone)]
 pub struct Config {
+    #[serde(default)]
+    pub thread_pool: ThreadPool,
     pub server: Server,
     pub upload_threshold: u32,
     pub upload_process_batch_size: usize,
@@ -38,6 +40,19 @@ impl ServerMode {
 pub enum Host {
     Ip(IpAddr),
     Hostname(String),
+}
+
+#[derive(Clone, Deserialize)]
+pub struct ThreadPool {
+    pub pool_size: usize,
+}
+
+impl Default for ThreadPool {
+    fn default() -> Self {
+        Self {
+            pool_size: num_cpus::get(),
+        }
+    }
 }
 
 impl std::fmt::Display for Host {
